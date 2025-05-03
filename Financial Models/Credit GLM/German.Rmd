@@ -1,0 +1,19 @@
+---
+title: "German"
+author: "Talgat Zharkynbay, Aiyakez Akhmoldanova, Madina Zhumatayeva, Kaiyrbek Kabdolkhairov"
+date: "28 04 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+Data=reade.table("German")
+  
+  
+  
+  
+```
+

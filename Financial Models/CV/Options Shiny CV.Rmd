@@ -1,0 +1,165 @@
+---
+title: "Options Calculator"
+runtime: shiny
+output:
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    source_code: embed
+---
+
+
+```{r setup, message = FALSE}
+library(flexdashboard)
+library(shiny)
+library(tidyverse)
+library(fOptions)
+library(derivmkts)
+library(data.table)
+options(digits = 3)
+```
+
+Sidebar {.sidebar}
+=====================================
+  
+```{r}
+
+fluidRow(
+  column(6,
+  numericInput("Spot", "Spot", 100))
+)  
+
+fluidRow(
+  column(6,
+  numericInput("Strike", "Strike", 120))
+)  
+
+
+fluidRow(
+  column(6,
+  numericInput("RF_rate", "Risk free rate", 0.04, min = 0, max = 1))
+)  
+
+fluidRow(
+  column(6,
+  numericInput("Sigma", "Sigma", 0.32, min = 0, max = 1))
+)  
+
+fluidRow(
+  column(7,
+  numericInput("Time", "Time to maturity (in years)", 2,
+               min = 0, max = 100))
+)  
+
+
+fluidRow(
+  column(6,
+  numericInput("Div", "Dividends", 0))
+)
+
+fluidRow(
+  column(6,
+  numericInput("Steps", "Number of Steps", 6))
+)  
+
+fluidRow(
+  column(7,
+  selectInput("type", "Call or Put",
+              c("Call" = FALSE,
+                "Put" = TRUE))
+  ))
+  
+fluidRow(
+  column(7,
+  selectInput("american", "American or European",
+              c("European" = FALSE,
+                "American" = TRUE))
+  )
+)
+
+actionButton("go", "Submit")
+
+Option <- eventReactive(input$go, {
+
+  
+s=input$Spot
+k=input$Strike
+v=input$Sigma
+r=input$RF_rate
+tt=input$Time
+d=input$Div
+nstep=input$Steps
+
+
+  
+Option=binomplot(s, k, v, r, tt, d, nstep, american=input$american, 
+              putopt=input$type,
+             plotarrows = TRUE, plotvalues = TRUE, 
+             drawstrike = FALSE, pointsize = 5,
+             crr = TRUE)  
+})
+
+
+#######################################################################
+
+Greeks <- eventReactive(input$go, {
+
+s=input$Spot
+k=input$Strike
+v=input$Sigma
+r=input$RF_rate
+tt=input$Time
+d=input$Div
+nstep=input$Steps
+
+Option_Data_2=binomopt(s, k, v, r, tt, d, nstep, american=FALSE, putopt=FALSE,
+returntrees = TRUE, crr = TRUE, returngreeks = TRUE)
+
+Greeks=as.data.frame(Option_Data_2$greeks)
+
+})
+
+####################################################
+
+# BSM <- eventReactive(input$go, {
+# 
+# s=input$Spot
+# k=input$Strike
+# v=input$Sigma
+# r=input$RF_rate
+# tt=input$Time
+# d=input$Div
+# nstep=input$Steps
+# 
+# BSM=as.data.frame(cbind(bscall(s, k, v, r, tt, d),bsput(s, k, v, r, tt, d)))
+
+# })
+
+```
+
+Insert Parameters and the click "Submit"
+=====================================  
+
+
+Row {.tabset .tabset-fade}
+-------------------------------------
+
+
+### Binomial Plot CRR
+
+```{r}
+renderPlot({
+  Option() 
+    
+})
+```
+
+### Greeks
+
+```{r}
+renderTable({
+   Greeks() %>%
+  `colnames<-`("Value")%>%
+mutate(Greek = c("delta", "gamma", "theta"))
+})
+```
+

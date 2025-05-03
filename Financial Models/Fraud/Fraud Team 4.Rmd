@@ -1,0 +1,76 @@
+---
+title: "Fraud Team 4"
+author: "Talgat Zharkynbay, Aiyakez Akhmoldanova, Madina Zhumatayeva, Kaiyrbek Kabdolkhairov"
+date: "28 04 2020"
+output: html_document
+---
+```{r}
+library(lubridate)
+library(xts)
+library(dygraphs)
+library(readxl)
+```
+
+#Reading the data
+
+```{r}
+Prices=read_xls("C:/Users/talga/Desktop/Masters/R/MyDataFiles/HW_sat.xls",
+                 sheet = "Sheet2", col_names=FALSE)
+length(Prices)
+head(Prices)
+```
+
+#Creating some time series with 90 days, except saturdays and sundays:
+
+```{r}
+Imaginary_Dates=seq.Date(from = as.Date("2020-04-20"), 
+                         to = as.Date("2021-04-20"), 
+                         by = 1)
+
+Imaginary_Dates=Imaginary_Dates[-seq(from=7, to=length(Imaginary_Dates), by=7)]
+
+Imaginary_Dates=Imaginary_Dates[-seq(from=6, to=length(Imaginary_Dates), by=6)]
+
+Imaginary_Dates=Imaginary_Dates[1:90]
+```
+
+#Merging dates and Prices
+
+```{r}
+Prices=xts(Prices, order.by = Imaginary_Dates); colnames(Prices)="Price"
+
+dygraph(Prices, main = "Stock Prices") %>% 
+  dyRangeSelector() %>% 
+  dyLegend(show = "always", hideOnMouseOut = TRUE) %>%
+  dyAxis("y", label = "Stock Price") %>%
+  dyHighlight(highlightCircleSize = 5,
+              highlightSeriesOpts = list(strokeWidth = 4)) %>%
+  dyOptions(axisLineColor = "navy", gridLineColor = "grey")
+
+```
+
+#Checking the fraud possibility
+
+```{r}
+Returns=na.omit(diff(log(Prices)))
+
+dygraph(Returns, main = "Stock Returns") %>% 
+  dyRangeSelector() %>% 
+  dyLegend(show = "always", hideOnMouseOut = TRUE) %>%
+  dyAxis("y", label = "Stock Return") %>%
+  dyHighlight(highlightCircleSize = 5,
+              highlightSeriesOpts = list(strokeWidth = 4)) %>%
+  dyOptions(axisLineColor = "navy", gridLineColor = "grey")
+
+
+Tuesday=ifelse(.indexwday(Returns)==2,
+                       1,
+                       0)
+
+Fraud_check=lm(Returns$Price~Tuesday)
+
+summary(Fraud_check)
+```
+
+# We can conclude that there is insignificant effect of Tuesday trading
+# on the stock returns. Hence, there is no evidence of fraud.

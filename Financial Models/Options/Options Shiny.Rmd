@@ -1,0 +1,396 @@
+---
+title: "Options Killer"
+runtime: shiny
+output:
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    source_code: embed
+---
+
+
+```{r setup, message = FALSE}
+library(tidyverse)
+library(fOptions)
+library(derivmkts)
+library(data.table)
+library(DT)
+options(digits = 3)
+```
+
+Sidebar {.sidebar}
+=====================================
+  
+```{r}
+
+fluidRow(
+  column(6,
+  numericInput("Spot", "Spot", 420))
+)  
+
+fluidRow(
+  column(6,
+  numericInput("Strike", "Strike", 441.53))
+)  
+
+
+fluidRow(
+  column(6,
+  numericInput("RF_rate", "Risk free rate", 0.04, min = 0, max = 1))
+)  
+
+fluidRow(
+  column(6,
+  numericInput("Sigma", "Sigma", 0.32, min = 0, max = 1))
+)  
+
+fluidRow(
+  column(7,
+  numericInput("Time", "Time to maturity (in years)", 1.25,
+               min = 0, max = 100))
+)  
+
+
+fluidRow(
+  column(6,
+  numericInput("Div", "Dividends", 0))
+)
+
+fluidRow(
+  column(6,
+  numericInput("Steps", "Number of Steps", 60))
+)  
+
+fluidRow(
+  column(7,
+  selectInput("type", "Call or Put",
+              c("Call" = FALSE,
+                "Put" = TRUE))
+  ))
+  
+fluidRow(
+  column(7,
+  selectInput("american", "American or European",
+              c("European" = FALSE,
+                "American" = TRUE))
+  )
+)
+
+actionButton("go", "Submit")
+
+Option <- eventReactive(input$go, {
+
+  
+s=input$Spot
+k=input$Strike
+v=input$Sigma
+r=input$RF_rate
+tt=input$Time
+d=input$Div
+nstep=input$Steps
+
+
+  
+Option=binomplot(s, k, v, r, tt, d, nstep, american=input$american, 
+              putopt=input$type,
+             plotarrows = TRUE, plotvalues = TRUE, 
+             drawstrike = FALSE, pointsize = 5,
+             crr = TRUE)  
+})
+
+
+#######################################################################
+
+Stock_trees <- eventReactive(input$go, {
+  
+s=input$Spot
+k=input$Strike
+v=input$Sigma
+r=input$RF_rate
+tt=input$Time
+d=input$Div
+nstep=input$Steps
+
+Option_Data=binomopt(s, k, v, r, tt, d, nstep, american=FALSE, putopt=FALSE, returntrees = TRUE, crr = TRUE)
+
+Stock_trees=as.data.frame(Option_Data$stree)
+
+})
+
+#######################################################
+
+Forward_trees <- eventReactive(input$go, {
+  
+s=input$Spot
+k=input$Strike
+v=input$Sigma
+r=input$RF_rate
+tt=input$Time
+d=input$Div
+nstep=input$Steps
+
+Option_Data=binomopt(s, k, v, r, tt, d, nstep, american=FALSE, putopt=FALSE,
+returntrees = TRUE, crr = TRUE)
+
+Forward_trees=Option_Data$stree
+
+Multipliers=c(exp(r*seq(1, ncol(Forward_trees), 1)))
+
+Forward_trees=as.data.frame(t(t(Forward_trees)*Multipliers))
+
+
+})
+
+
+###################################################
+
+Value_test <- eventReactive(input$go, {
+  
+s=input$Spot
+k=input$Strike
+v=input$Sigma
+r=input$RF_rate
+tt=input$Time
+d=input$Div
+nstep=input$Steps
+
+Option_Data=binomopt(s, k, v, r, tt, d, nstep, american=FALSE, putopt=FALSE, returntrees = TRUE, crr = TRUE)
+
+Stock_trees=as.data.frame(Option_Data$stree) 
+  
+Forward_trees=Option_Data$stree
+
+Multipliers=c(exp(r*seq(0, ncol(Forward_trees), 1)))
+
+Forward_trees=as.data.frame(t(t(Forward_trees)*Multipliers))  
+  
+  
+Value_test=as.data.frame(Forward_trees-Stock_trees) 
+
+})  
+
+###################################################
+
+November_1 <- eventReactive(input$go, {
+  
+s=input$Spot
+k=input$Strike
+v=input$Sigma
+r=input$RF_rate
+tt=input$Time
+d=input$Div
+nstep=input$Steps
+
+Option_Data=binomopt(s, k, v, r, tt, d, nstep, american=FALSE, putopt=FALSE, returntrees = TRUE, crr = TRUE)
+
+Stock_trees=as.data.frame(Option_Data$stree)
+
+November_1=as.data.frame(mean(Stock_trees$V35))
+
+})
+
+
+###################################################
+
+Forward_6_percent <- eventReactive(input$go, {
+  
+s=input$Spot
+k=input$Strike
+v=input$Sigma
+r=input$RF_rate
+tt=input$Time
+d=input$Div
+nstep=input$Steps
+
+Option_Data=binomopt(s, k, v, r, tt, d, nstep, american=FALSE, putopt=FALSE, returntrees = TRUE, crr = TRUE)
+
+Stock_trees=as.data.frame(Option_Data$stree) 
+
+Stock_trees=Stock_trees[, 36:60]
+  
+
+Multipliers=c(exp((r+0.02)*seq(1, ncol(Stock_trees), 1)))
+
+Forward_trees=as.data.frame(t(t(Stock_trees)*Multipliers))  
+  
+  
+Forward_6_percent=as.data.frame(Forward_trees-Stock_trees)
+
+
+})
+
+###################################################
+
+Forward_2_percent <- eventReactive(input$go, {
+  
+s=input$Spot
+k=input$Strike
+v=input$Sigma
+r=input$RF_rate
+tt=input$Time
+d=input$Div
+nstep=input$Steps
+
+Option_Data=binomopt(s, k, v, r, tt, d, nstep, american=FALSE, putopt=FALSE, returntrees = TRUE, crr = TRUE)
+
+Stock_trees=as.data.frame(Option_Data$stree) 
+
+Stock_trees=Stock_trees[, 36:60]
+  
+
+Multipliers=c(exp((r-0.02)*seq(1, ncol(Stock_trees), 1)))
+
+Forward_trees=as.data.frame(t(t(Stock_trees)*Multipliers))  
+  
+  
+Forward_2_percent=as.data.frame(Forward_trees-Stock_trees)
+
+
+})
+###################################################
+
+Markin_Market <- eventReactive(input$go, {
+  
+s=input$Spot
+k=input$Strike
+v=input$Sigma
+r=input$RF_rate
+tt=input$Time
+d=input$Div
+nstep=input$Steps
+
+Option_Data=binomopt(s, k, v, r, tt, d, nstep, american=FALSE, putopt=FALSE,
+returntrees = TRUE, crr = TRUE)
+
+Forward_trees=Option_Data$stree
+
+Multipliers=c(exp(r*seq(1, ncol(Forward_trees), 1)))
+
+Forward_trees=as.data.frame(t(t(Forward_trees)*Multipliers))
+
+#Markin_Market=as.data.frame(t(apply(Forward_trees[,-1], 1, diff)))
+
+Markin_Market=as.data.frame(Forward_trees[-1] - Forward_trees[-ncol(Forward_trees)])
+
+
+})
+
+
+###################################################
+
+# Greeks <- eventReactive(input$go, {
+#   
+# s=input$Spot
+# k=input$Strike
+# v=input$Sigma
+# r=input$RF_rate
+# tt=input$Time
+# d=input$Div
+# nstep=input$Steps
+# 
+# Option_Data_2=binomopt(s, k, v, r, tt, d, nstep, american=FALSE, putopt=FALSE,
+# returntrees = TRUE, crr = TRUE, returngreeks = TRUE)
+# 
+# Greeks=as.data.frame(Option_Data_2$greeks)
+# 
+# })
+
+####################################################
+
+# BSM <- eventReactive(input$go, {
+#   
+# s=input$Spot
+# k=input$Strike
+# v=input$Sigma
+# r=input$RF_rate
+# tt=input$Time
+# d=input$Div
+# nstep=input$Steps
+# 
+# BSM=as.data.frame(cbind(bscall(s, k, v, r, tt, d),bsput(s, k, v, r, tt, d)))
+# 
+# })
+
+```
+
+Insert Parameters and the click "Submit"
+=====================================  
+
+
+Row {.tabset .tabset-fade}
+-------------------------------------
+
+
+### Binomial Plot CRR
+
+```{r}
+renderPlot({
+  Option() 
+    
+})
+```
+
+
+### Stock Tree 4%
+
+```{r}
+renderDataTable({
+   datatable(Stock_trees(), options = list(scrollX = TRUE,
+                                           scrollY="500px"))
+})
+```
+
+
+### Forward Tree 4%
+
+```{r}
+renderDataTable({
+   datatable(Forward_trees(), options = list(scrollX = TRUE,
+                                           scrollY="500px"))
+})
+```
+
+### Forward Val 4%
+
+```{r}
+renderDataTable({
+   datatable(Value_test(), options = list(scrollX = TRUE,
+                                           scrollY="500px"))
+})
+```
+
+### Avg.Val at Nov 1
+
+```{r}
+renderDataTable({
+   datatable(November_1(), options = list(scrollX = TRUE,
+                                           scrollY="500px"))
+})
+```
+
+### Forward Val 6%
+
+```{r}
+renderDataTable({
+   datatable(Forward_6_percent(), options = list(scrollX = TRUE,
+                                           scrollY="500px"))
+})
+```
+
+### Forward Val 2%
+
+```{r}
+renderDataTable({
+   datatable(Forward_2_percent(), options = list(scrollX = TRUE,
+                                           scrollY="500px"))
+})
+```
+
+### MM 4%
+
+```{r}
+renderDataTable({
+   datatable(Markin_Market(), options = list(scrollX = TRUE,
+                                           scrollY="500px"))
+})
+```
+

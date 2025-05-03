@@ -1,0 +1,294 @@
+---
+title: "Full Covariance Model"
+runtime: shiny
+output:
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    source_code: embed
+---
+
+
+```{r setup, message = FALSE}
+library(tidyverse)
+library(quantmod)
+library(quadprog)
+library(highcharter)
+library(tidyquant)
+library(data.table)
+```
+
+Sidebar {.sidebar}
+=====================================
+  
+```{r}
+
+# fluidRow(
+#   column(6,
+#   selectInput("Risk_Free", "Select the Risk Free Rate",
+#             c("3 Month", "6 Month", "1 Year", "2 Year",
+#               "3 Year", "5 Year", "7 Year", "10 Year",
+#               "20 Year", "30 Year")))
+# )
+
+fluidRow(
+  column(6,
+  textInput("stock1", "Stock 1", "SPY"))
+)
+
+fluidRow(
+  column(6,
+  textInput("stock2", "Stock 2", "MSFT"))
+)
+
+fluidRow(
+  column(6,
+  textInput("stock3", "Stock 3", "AAPL"))
+)
+
+fluidRow(
+  column(6,
+  textInput("stock4", "Stock 4", "TSLA"))
+)
+
+fluidRow(
+  column(6,
+  textInput("stock5", "Stock 5", "VRTX"))
+)
+
+fluidRow(
+  column(6,
+  numericInput("A", "Degree of Risk Aversion", 8, min = 2, max = 20))
+)
+
+
+```
+
+```{r}
+actionButton("go", "Submit")
+
+Test <- eventReactive(input$go, {
+  
+  symbols <- c(input$stock1, input$stock2, input$stock3, input$stock4, input$stock5)
+  
+  Market <-
+  getSymbols(symbols,
+             src = 'yahoo',
+             auto.assign = TRUE,
+             warnings = FALSE) %>%
+  map(~Ad(get(.))) %>%
+  reduce(merge) %>%
+  `colnames<-`(symbols)
+
+Market_monthly <- to.monthly(Market,
+                             indexAt = "lastof",
+                             OHLC = FALSE)
+Returns_Market <-
+  Return.calculate(Market_monthly,
+                   method = "log") %>%
+  na.omit()
+  
+# Risk-free:
+
+getSymbols("DGS3MO" , src = "FRED")
+
+Returns_Risk_Free=DGS3MO[nrow(DGS3MO)]/12/100
+
+# getSymbols(c("DGS3MO","DGS6MO","DGS1", "DGS2", "DGS3", "DGS5",  
+#         "DGS7",  
+#         "DGS10",  
+#         "DGS20",  
+#         "DGS30"), src = "FRED")
+# 
+#   if (input$Risk_Free=="3 Month") {
+#     Returns_Risk_Free=DGS3MO[nrow(DGS3MO)]/12/100
+#   }
+#   else if (input$Risk_Free=="6 Month") {
+#     Returns_Risk_Free=DGS6MO[nrow(DGS6MO)]/12/100
+#   }
+# 
+#   else if (input$Risk_Free=="1 Year") {
+#     Returns_Risk_Free=DGS1[nrow(DGS1)]/12/100
+#   }
+# 
+#   else if (input$Risk_Free=="2 Year") {
+#     Returns_Risk_Free=DGS2[nrow(DGS2)]/12/100
+#   }
+# 
+#   else if (input$Risk_Free=="3 Year") {
+#     Returns_Risk_Free=DGS3[nrow(DGS3)]/12/100
+#   }
+#   else if (input$Risk_Free=="5 Year") {
+#     Returns_Risk_Free=DGS5[nrow(DGS5)]/12/100
+#   }
+#   else if (input$Risk_Free=="7 Year") {
+#     Returns_Risk_Free=DGS7[nrow(DGS7)]/12/100
+#   }
+#   else if (input$Risk_Free=="10 Year") {
+#     Returns_Risk_Free=DGS10[nrow(DGS10)]/12/100
+#   }
+#   else if (input$Risk_Free=="20 Year") {
+#     Returns_Risk_Free=DGS20[nrow(DGS20)]/12/100
+#   }
+#   else {
+#     Returns_Risk_Free=DGS30[nrow(DGS30)]/12/100
+#   }
+#   
+#   return(Returns_Risk_Free)
+
+#Optimal Risky:
+
+Returns_DE=Returns_Market
+
+DE_VCOV=cov(Returns_DE)
+
+DE_Mean=matrix(apply(Returns_DE,2,mean))
+
+rownames(DE_Mean)<-symbols
+
+colnames(DE_Mean)<-c("DE_Mean")
+
+DE_Min<-min(DE_Mean)
+
+DE_Max<-max(DE_Mean)
+
+increments=1000
+
+# DE_Target<-seq(DE_Min,DE_Max,
+#                length=increments)
+
+DE_Target<-seq(DE_Min,2*DE_Max,
+                length=increments)
+
+DE_Target_SD<-rep(0,length=increments)
+
+DE_Weights<-matrix(0,nrow=increments,
+                   ncol=length(DE_Mean))
+
+for (i in 1:increments){
+  Dmat<-2*DE_VCOV
+  
+  dvec<-c(rep(0,length(DE_Mean)))
+  
+  # Amat<-cbind(rep(1,length(DE_Mean)),DE_Mean,
+  #             diag(1,nrow=ncol(Returns_DE)))
+  Amat<-cbind(rep(1,length(DE_Mean)),DE_Mean)
+  
+  #bvec<-c(1,DE_Target[i],rep(0,ncol(Returns_DE)))
+  
+  bvec<-c(1,DE_Target[i])
+  
+  soln<-solve.QP(Dmat,dvec,Amat,bvec=bvec,meq=2)
+  
+  DE_Target_SD[i]<-sqrt(soln$value)
+  DE_Weights[i,]<-soln$solution}
+
+colnames(DE_Weights)<-symbols
+
+DE_Portfolio<-data.frame(cbind(DE_Target,
+                               DE_Target_SD,
+                               DE_Weights))
+
+DE_Portfolio=DE_Portfolio%>%
+  filter(DE_Target_SD!=0)
+
+
+DE_Min_Var<-subset(DE_Portfolio,
+                    DE_Portfolio$DE_Target_SD
+                    ==min(DE_Portfolio$DE_Target_SD))
+
+
+DE_Portfolio$Sharpe<-(DE_Portfolio$DE_Target-
+                        as.vector(Returns_Risk_Free))/
+  DE_Portfolio$DE_Target_SD
+
+DE_Tangency<-subset(DE_Portfolio,
+                    DE_Portfolio$Sharpe==
+                      max(DE_Portfolio$Sharpe))
+
+
+DE_Complete=rbind(DE_Tangency,
+                  c(as.numeric(Returns_Risk_Free)*12,
+                    rep(0, ncol(DE_Tangency)-1))
+)
+
+
+Test=cbind(DE_Portfolio, 
+           DE_Min_Var$DE_Target, DE_Min_Var$DE_Target_SD, 
+           DE_Tangency$DE_Target_SD,DE_Tangency$DE_Target, 
+           c(DE_Complete$DE_Target_SD, 
+             rep(0, nrow(DE_Portfolio)-2)),
+           c(DE_Complete$DE_Target, 
+             rep(0, nrow(DE_Portfolio)-2)))
+
+setnames(Test, 
+         old = c('c(DE_Complete$DE_Target_SD, rep(0, nrow(DE_Portfolio) - 2))',
+                 'c(DE_Complete$DE_Target, rep(0, nrow(DE_Portfolio) - 2))'), 
+         new = c('DE_Complete$DE_Target_SD','DE_Complete$DE_Target'))
+
+
+# Complete Portfolio:
+A=input$A
+
+w=subset(DE_Tangency, select=symbols)
+
+E_Rp=sum(colMeans(Returns_DE)*w)
+
+SD=StdDev(Returns_DE, weights = as.numeric(w))
+
+Risk_Weight=as.numeric((E_Rp-Returns_Risk_Free*12)/(A*SD^2))
+
+Riskless_Weight=1-Risk_Weight
+
+Risk_Weight; Riskless_Weight
+
+Complete_Portfolio_Ret=as.numeric(Risk_Weight*sum(colMeans(Returns_DE)*w)+
+  Riskless_Weight*Returns_Risk_Free*12)
+
+Complete_Portfolio_SD=sqrt((Risk_Weight^2)*(SD^2))
+
+Complete_Portfolio=data.frame(cbind(Complete_Portfolio_Ret,
+                         Complete_Portfolio_SD))
+
+Test=cbind(Test, Complete_Portfolio)
+
+})
+```
+
+Returns
+=====================================  
+
+
+Row {.tabset .tabset-fade}
+-------------------------------------
+
+
+### Efficient Frontier
+
+```{r}
+renderHighchart({
+  
+highchart() %>%
+  hc_add_series(Test(), "line", 
+                hcaes(x = DE_Target_SD, 
+                      y = DE_Target)
+                , name="Efficient Frontier")%>%
+  hc_yAxis(title = list(text = "Return"))%>%
+  hc_xAxis(title = list(text = "Risk"))%>%
+  hc_add_series(Test(), "line", 
+                hcaes(x = `DE_Min_Var$DE_Target_SD`, 
+                      y = `DE_Min_Var$DE_Target`)
+                ,name="Minimum Variance Portfolio", lineWidth=10)%>%
+  hc_add_series(Test(), "line", 
+                hcaes(x = `DE_Tangency$DE_Target_SD`, 
+                      y = `DE_Tangency$DE_Target`)
+                ,name="Tangency Portfolio", lineWidth=10)%>%
+  hc_add_series(Test(), "line", 
+                hcaes(x = `DE_Complete$DE_Target_SD`, 
+                      y = `DE_Complete$DE_Target`)
+                ,name="Capital Allocation Line", lineWidth=3)%>%
+      hc_add_series(Test(), "line", 
+                hcaes(x = `V2`, 
+                      y = `Complete_Portfolio_Ret`)
+                ,name="Complete Portfolio", lineWidth=10)
+})
+```
