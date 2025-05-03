@@ -3,11 +3,11 @@ library(RPostgreSQL)
 
 drv <- dbDriver("PostgreSQL")
 con <- dbConnect(drv, 
-                 dbname="valuefokus",
-                 host="5.255.77.254",
+                 dbname="",
+                 host="",
                  #port=1234,
-                 user="valuefokus",
-                 password="BFb8nETucptaGLG")
+                 user="",
+                 password="")
 dbListTables(con) 
 
 myTableTest <-dbGetQuery(con, statement = "SELECT filings_filer.cik, filings_edgarindexentry.company_name, 
